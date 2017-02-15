@@ -1,0 +1,245 @@
+{% load staticfiles %}
+<html>
+<head>
+<title>SPA</title>
+	<link href="{% static 'css/bootstrap-3.3.7-dist/css/bootstrap.min.css' %}" rel="stylesheet">
+	<link href="{% static 'css/bootstrap-3.3.7-dist/fonts' %}">
+	<link rel = 'stylesheet' href = '{% static "css/style.css" %}' />
+	
+	<script src="https://fb.me/react-15.1.0.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.24/browser.min.js"></script>
+	<script src="https://fb.me/react-dom-15.1.0.js"></script>
+	<link href="https://fonts.googleapis.com/css?family=Lobster" rel="stylesheet">
+	
+	
+</head>
+<body>
+<div  class ="container-fluid">
+<div class="page-header">
+  <h1>Список задач <small>SPA</small></h1>
+</div>
+
+<div class="row">
+	<div class="col-sm-8 col-sm-offset-2">
+		<div id = "mainDiv">
+
+		</div>
+	</div>
+<div>
+</div>
+<script type = "text/babel">
+	var list = [];
+	{% for t in tasks %}
+		list.push({text: `{{t}}`, index:'{{t.pk}}', main:'{{t.main_task.pk}}'});
+	{%endfor%}
+	var Task = React.createClass({
+		getInitialState: function() {
+			return {editing: false}
+		},
+		edit: function() {
+			this.setState({editing: true})
+			
+		},
+		remove: function() {
+			this.props.delete(this.props.index)
+		},
+		
+		save: function() {
+			this.setState({editing: false})
+			this.props.update(this.props.index, this.refs.newTask_text.value)
+		},
+		renderDefault: function(){
+			return (
+				
+				<div>
+					<p>{this.props.children}</p>
+					<button className="btn btn-primary" onClick = {this.edit}> Редактировать </button>
+					<button className="btn btn-primary" onClick = {this.remove}> Удалить </button>
+				</div>
+				
+			);
+		},	
+		renderEditMode: function(){
+			
+			return (
+				<div>
+		
+					<textarea ref = "newTask_text" defaultValue = {this.props.children}></textarea>
+					<button className="btn btn-primary" onClick = {this.save}> Сохранить </button>
+				</div>
+			);
+		},
+		render: function() {
+			if(this.state.editing)
+				return this.renderEditMode();
+			else
+				return this.renderDefault();
+		}
+	});
+	var Tasks = React.createClass({
+		getInitialState: function() {
+			if(this.props.list)
+				return {list: this.props.list}
+			return { list: list }
+		},
+		addTask: function() {
+			if(!this.props || !this.props.main) {
+				var arr = this.state.list;
+				var new_text = this.refs.newTask.value;
+				var this_ = this;
+				$.ajax({
+					url:'newTask',
+					type:'post',
+					dataType: 'json',
+					data: {
+						'csrfmiddlewaretoken':"{{csrf_token}}",
+						'Task': this.refs.newTask.value
+					},
+					success: function(data) {
+						if(new_text != "") {
+							arr.push({text: new_text, index: data});
+							this_.setState({list:arr});
+						}
+					}
+				})
+				this.refs.newTask.value = "";
+			}
+			else {
+				var arr = this.state.list;
+				var main = this.props.main;
+				var new_text = this.refs.newTask.value;
+				var this_ = this;
+				$.ajax({
+					url:'newTask',
+					type:'post',
+					dataType: 'json',
+					data: {
+						'csrfmiddlewaretoken':"{{csrf_token}}",
+						'Task': this.refs.newTask.value,
+						'main': main.index
+					},
+					success: function(data) {
+						if(new_text != "") {
+							arr.push({text: new_text, index: data});
+							this_.setState({list:arr});
+						}
+					}
+				})
+				this.refs.newTask.value = "";
+			}
+		},
+		removeTask: function(i) {
+			var arr = this.state.list;
+			$.ajax({
+				url:'deleteTask',
+				type:'post',
+				dataType: 'json',
+				data: {
+					'csrfmiddlewaretoken':"{{csrf_token}}",
+					'pk': arr[i].index
+				},
+			})
+			arr.splice(i, 1);
+			this.setState({list:arr});
+		},
+		updateTask: function(i, task_text) {
+			var arr = this.state.list;
+			$.ajax({
+				url:'updateTask',
+				type:'post',
+				dataType: 'json',
+				data: {
+					'csrfmiddlewaretoken':"{{csrf_token}}",
+					'pk': arr[i].index,
+					'newText':task_text
+				},
+			})
+			arr[i].text = task_text;
+			this.setState({list:arr});
+		},
+		getSubTasks: function(i) {
+			list = [];
+			for (var t = 0; t < this.state.list.length; t++) {
+				if(this.state.list[t].main == this.state.list[i].index) {
+					list.push(this.state.list[t]);
+				}
+			}
+			return list;
+		},
+		countParents: function(i) {
+			var count = 0;
+			while(i != -1) {
+				count++;
+				i = this.state.list.map(function(e){return e.index;}).indexOf(this.state.list[i].main);
+			}
+			return count;
+		},
+		eachTask: function(text, i){
+			var margin = 0;
+			var count = this.countParents(i);
+			margin = 25 * count;
+			if(count == 1) {
+				var subTasks = this.getSubTasks(i);
+				return <div><Task margin = {margin} key = {i} index = {i} main = {this.state.list[i].main} update ={this.updateTask} delete = {this.removeTask} >{text.text}</Task><Tasks margin = {margin} main = {this.state.list[i]} list = {subTasks}/></div>
+				
+			}
+		},
+		renderDefault: function() {
+			var TaskStyle = {
+				margin: this.props.margin + 'px',
+				borderWidth: 1,
+				borderStyle: "solid",
+				borderColor: '#333',
+				padding: '10px'
+			}
+			return (
+				<div style = {TaskStyle}>
+					{%csrf_token%}
+					<form id = "newTask" method = "POST"> <textarea ref = "newTask" type = "text" value = {this.props.children}></textarea></form>
+					<button className="btn btn-primary" onClick = {this.addTask}>Добавить новую задачу</button>
+					<div>
+						{this.state.list.map(this.eachTask)}
+					</div>
+				</div>
+			);
+		},
+		renderMainTask: function() {
+			var TaskStyle = {
+				margin: this.props.margin + 'px',
+				borderWidth: 1,
+				borderStyle: "solid",
+				borderColor: '#333',
+				padding: '10px'
+			}
+			return (
+				<div style = {TaskStyle}>
+					{%csrf_token%}
+					<form id = "newTask" method = "POST"> <textarea ref = "newTask" type = "text" value = {this.props.children}></textarea></form>
+					<button className="btn btn-primary" onClick = {this.addTask}>Добавить подзадачу</button>
+					<div>
+						{this.state.list.map(this.eachTask)}
+					</div>
+				</div>
+			);
+		},
+		render: function() {
+			if(this.props.main) return this.renderMainTask();
+			else return this.renderDefault();
+				
+		}
+	})
+	ReactDOM.render(
+	<div>
+		<Tasks />
+	</div>
+	, document.getElementById("mainDiv"))
+	
+</script>
+
+<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <!-- Include all compiled plugins (below), or include individual files as needed -->
+    <script src='{% static "css/bootstrap.min.js" %}'></script>
+
+</body>
+</html>

@@ -1,0 +1,11 @@
+ body {
+	font-family: 'Lobster', cursive !important;
+	font-size: 25px;
+ }
+ button {
+	margin: 5px!important;
+}
+.thumbnail { 
+	word-wrap:break-word!important;
+	border-radius:0px!important;
+ }
